@@ -61,26 +61,31 @@ async function getStravaActivities(accessToken) {
 }
 
 export default async function handler(req, res) {
+  const sendJson = (statusCode, payload) => {
+    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(payload));
+  };
+
   try {
     const stravaToken = await getStravaTokenFromSupabase();
 
     if (!stravaToken || !stravaToken.access_token) {
-      res.status(401).json({ error: 'Not connected to Strava' });
+      sendJson(401, { error: 'Not connected to Strava' });
       return;
     }
 
     const result = await getStravaActivities(stravaToken.access_token);
 
     if (result.error) {
-      res.status(result.statusCode || 500).json({ error: result.error });
+      sendJson(result.statusCode || 500, { error: result.error });
       return;
     }
 
-    res.status(200).json({
+    sendJson(200, {
       ok: true,
       activities: result.activities || [],
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    sendJson(500, { error: String(err) });
   }
 }
