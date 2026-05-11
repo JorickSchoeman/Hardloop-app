@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isSupabaseConfigured, supabase, supabaseAppStateId, supabaseAppStateTable } from './lib/supabase';
 
 type ActivityType = 'run';
 type PageKey = 'home' | 'run' | 'coach' | 'plan' | 'history';
@@ -62,6 +63,12 @@ type TrainingPlan = {
   raceDate: string;
   summary: string;
   sessions: TrainingSession[];
+};
+
+type AppStatePayload = {
+  activities: ActivityEntry[];
+  coachProfile: CoachProfile;
+  trainingPlan: TrainingPlan;
 };
 
 type PdfTrainingKind = 'RD' | 'DT' | 'INT' | 'Progressief' | 'Heuvel';
@@ -253,6 +260,24 @@ const coachNotes = [
   'Bouw je volume rustig op en herstel bewust.',
   'Kracht helpt je looptechniek en blessurepreventie.',
 ];
+
+function getDefaultCoachProfile(): CoachProfile {
+  return {
+    goal: '',
+    raceDate: '',
+    availableDays: [1, 3, 6],
+    highTimeDay: 6,
+    lowTimeDay: 2,
+    currentPace: '',
+    runsPerWeek: '',
+    weeklyDistance: '',
+    injuryNotes: '',
+  };
+}
+
+function getEmptyTrainingPlan(): TrainingPlan {
+  return { createdAt: '', raceDate: '', summary: '', sessions: [] };
+}
 
 function formatPace(minutesPerKm: number) {
   if (!Number.isFinite(minutesPerKm) || minutesPerKm <= 0) {
@@ -517,18 +542,8 @@ function buildTrainingPlan(profile: CoachProfile): TrainingPlan {
 
 function App() {
   const storedActivities = getStoredJson<ActivityEntry[]>(storageKey, initialActivities);
-  const storedProfile = getStoredJson<CoachProfile>(coachProfileKey, {
-    goal: '',
-    raceDate: '',
-    availableDays: [1, 3, 6],
-    highTimeDay: 6,
-    lowTimeDay: 2,
-    currentPace: '',
-    runsPerWeek: '',
-    weeklyDistance: '',
-    injuryNotes: '',
-  });
-  const storedPlan = getStoredJson<TrainingPlan>(coachPlanKey, { createdAt: '', raceDate: '', summary: '', sessions: [] });
+  const storedProfile = getStoredJson<CoachProfile>(coachProfileKey, getDefaultCoachProfile());
+  const storedPlan = getStoredJson<TrainingPlan>(coachPlanKey, getEmptyTrainingPlan());
 
   const [activePage, setActivePage] = useState<PageKey>('home');
   const [homeCollapsed, setHomeCollapsed] = useState(false);
@@ -542,6 +557,7 @@ function App() {
   const [coachResponse, setCoachResponse] = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachError, setCoachError] = useState('');
+  const [supabaseHydrated, setSupabaseHydrated] = useState(!isSupabaseConfigured);
   const [activities, setActivities] = useState<ActivityEntry[]>(() => {
     if (typeof window === 'undefined') {
       return storedActivities;
@@ -561,6 +577,92 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(coachPlanKey, JSON.stringify(trainingPlan));
   }, [trainingPlan]);
+
+  useEffect(() => {
+    const supabaseClient = supabase;
+
+    if (!supabaseClient) {
+      setSupabaseHydrated(true);
+      return;
+    }
+
+    const client = supabaseClient as NonNullable<typeof supabaseClient>;
+
+    let isCancelled = false;
+
+    async function hydrateSupabaseState() {
+      try {
+        const { data, error } = await client
+          .from(supabaseAppStateTable)
+          .select('payload')
+          .eq('id', supabaseAppStateId)
+          .maybeSingle();
+
+        if (isCancelled) {
+          return;
+        }
+
+        if (!error && data?.payload && typeof data.payload === 'object') {
+          const payload = data.payload as Partial<AppStatePayload>;
+
+          if (Array.isArray(payload.activities)) {
+            setActivities(payload.activities as ActivityEntry[]);
+          }
+
+          if (payload.coachProfile && typeof payload.coachProfile === 'object') {
+            setCoachProfile({
+              ...getDefaultCoachProfile(),
+              ...(payload.coachProfile as Partial<CoachProfile>),
+            });
+          }
+
+          if (payload.trainingPlan && typeof payload.trainingPlan === 'object') {
+            setTrainingPlan({
+              ...getEmptyTrainingPlan(),
+              ...(payload.trainingPlan as Partial<TrainingPlan>),
+            });
+          }
+        }
+      } catch {
+        // Keep the local fallback when Supabase is unreachable.
+      } finally {
+        if (!isCancelled) {
+          setSupabaseHydrated(true);
+        }
+      }
+    }
+
+    void hydrateSupabaseState();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const supabaseClient = supabase;
+
+    if (!supabaseClient || !supabaseHydrated) {
+      return;
+    }
+
+    const client = supabaseClient as NonNullable<typeof supabaseClient>;
+
+    const payload: AppStatePayload = {
+      activities,
+      coachProfile,
+      trainingPlan,
+    };
+
+    void client.from(supabaseAppStateTable).upsert(
+      {
+        id: supabaseAppStateId,
+        payload,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    );
+  }, [activities, coachProfile, supabaseHydrated, trainingPlan]);
 
   const runEntries = activities.filter((activity) => activity.type === 'run');
 
