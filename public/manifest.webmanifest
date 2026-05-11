@@ -1,0 +1,16 @@
+{
+  "name": "RunPulse",
+  "short_name": "RunPulse",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ff7a00",
+  "description": "Houd je hardlooptrainingen bij in een mobiele app met een coach die je agenda vult.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

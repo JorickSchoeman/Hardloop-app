@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.pdf
+.env.local
+.env
+.DS_Store
+*.log
+tsconfig.node.tsbuildinfo
+tsconfig.tsbuildinfo
+vite.config.d.ts
