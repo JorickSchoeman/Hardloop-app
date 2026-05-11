@@ -287,6 +287,125 @@ async function handleCoachRequest(request, response) {
   }
 }
 
+async function storeStravaTokensToSupabase(tokenPayload) {
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !anonKey) {
+      return false;
+    }
+
+    const restUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/app_state`;
+
+    // Try to fetch existing record
+    const getRes = await fetch(`${restUrl}?id=eq.main`, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+      },
+    });
+
+    if (!getRes.ok) {
+      // create new record
+      const body = { id: 'main', payload: { strava: tokenPayload } };
+      const createRes = await fetch(restUrl, {
+        method: 'POST',
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify(body),
+      });
+
+      return createRes.ok;
+    }
+
+    const existing = await getRes.json();
+    const currentPayload = Array.isArray(existing) && existing[0] && existing[0].payload ? existing[0].payload : {};
+    currentPayload.strava = tokenPayload;
+
+    const patchRes = await fetch(`${restUrl}?id=eq.main`, {
+      method: 'PATCH',
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({ payload: currentPayload }),
+    });
+
+    return patchRes.ok;
+  } catch (err) {
+    return false;
+  }
+}
+
+async function handleStravaAuth(request, response) {
+  const clientId = process.env.STRAVA_CLIENT_ID;
+  const redirectUri = process.env.STRAVA_REDIRECT_URI || `http://localhost:${port}/auth/strava/callback`;
+  const scopes = encodeURIComponent('activity:read_all,profile:read_all');
+
+  if (!clientId) {
+    response.writeHead(500, { 'Content-Type': 'text/plain' });
+    response.end('STRAVA_CLIENT_ID ontbreekt in de omgeving.');
+    return;
+  }
+
+  const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=auto&scope=${scopes}`;
+
+  response.writeHead(302, { Location: authUrl });
+  response.end();
+}
+
+async function handleStravaCallback(request, response) {
+  const url = new URL(request.url, `http://localhost:${port}`);
+  const code = url.searchParams.get('code');
+
+  if (!code) {
+    response.writeHead(400, { 'Content-Type': 'text/plain' });
+    response.end('Ontbrekende code van Strava.');
+    return;
+  }
+
+  const clientId = process.env.STRAVA_CLIENT_ID;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+  const redirectUri = process.env.STRAVA_REDIRECT_URI || `http://localhost:${port}/auth/strava/callback`;
+
+  if (!clientId || !clientSecret) {
+    response.writeHead(500, { 'Content-Type': 'text/plain' });
+    response.end('STRAVA_CLIENT_ID of STRAVA_CLIENT_SECRET ontbreekt in de omgeving.');
+    return;
+  }
+
+  try {
+    const tokenRes = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: Number(clientId),
+        client_secret: clientSecret,
+        code,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    const tokenData = await tokenRes.json();
+
+    // Store tokens in Supabase app_state.payload.strava
+    const ok = await storeStravaTokensToSupabase(tokenData);
+
+    response.writeHead(ok ? 200 : 500, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(`<html><body><h1>Strava gekoppeld: ${ok ? 'succes' : 'mislukt'}</h1><pre>${JSON.stringify(tokenData, null, 2)}</pre></body></html>`);
+  } catch (error) {
+    response.writeHead(500, { 'Content-Type': 'text/plain' });
+    response.end(`Fout bij token exchange: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 await loadEnvFile();
 const pdfSourcesContext = await loadPdfSourcesContext();
 
@@ -296,6 +415,16 @@ const vite = await createViteServer({
 });
 
 const server = http.createServer(async (request, response) => {
+  if (request.url?.startsWith('/auth/strava/callback')) {
+    await handleStravaCallback(request, response);
+    return;
+  }
+
+  if (request.url?.startsWith('/auth/strava')) {
+    await handleStravaAuth(request, response);
+    return;
+  }
+
   if (request.url?.startsWith('/api/coach')) {
     await handleCoachRequest(request, response);
     return;
