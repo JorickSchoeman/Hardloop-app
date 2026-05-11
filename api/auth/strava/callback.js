@@ -67,17 +67,26 @@ async function storeStravaTokensToSupabase(tokenPayload) {
 }
 
 export default async function handler(req, res) {
+  const sendJson = (statusCode, payload) => {
+    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(payload));
+  };
+
   try {
-    const { code } = req.query || {};
+    const url = new URL(req.url || '/api/auth/strava/callback', `http://${req.headers?.host || 'localhost:5173'}`);
+    const code = url.searchParams.get('code');
+
     if (!code) {
-      return res.status(400).json({ error: 'Missing code' });
+      sendJson(400, { error: 'Missing code' });
+      return;
     }
 
     const clientId = process.env.STRAVA_CLIENT_ID;
     const clientSecret = process.env.STRAVA_CLIENT_SECRET;
     const redirectUri = getStravaRedirectUri(req);
     if (!clientId || !clientSecret) {
-      return res.status(500).json({ error: 'STRAVA client config missing' });
+      sendJson(500, { error: 'STRAVA client config missing' });
+      return;
     }
 
     const tokenRes = await fetch('https://www.strava.com/oauth/token', {
@@ -94,17 +103,18 @@ export default async function handler(req, res) {
 
     if (!tokenRes.ok) {
       const error = await tokenRes.text();
-      return res.status(tokenRes.status).json({ error: `Strava API error: ${error}` });
+      sendJson(tokenRes.status, { error: `Strava API error: ${error}` });
+      return;
     }
 
     const tokenData = await tokenRes.json();
-
     const stored = await storeStravaTokensToSupabase(tokenData);
-
     const redirectUrl = stored ? '/?strava=connected' : '/?strava=storage_failed';
-    return res.redirect(302, redirectUrl);
+
+    res.writeHead(302, { Location: redirectUrl });
+    res.end();
   } catch (err) {
     console.error('Strava callback error:', err);
-    return res.status(500).json({ error: String(err) });
+    sendJson(500, { error: String(err) });
   }
 }
