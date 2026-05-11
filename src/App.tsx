@@ -255,11 +255,7 @@ const coachQuestions: CoachQuestion[] = [
   },
 ];
 
-const coachNotes = [
-  'Focus op ritme, niet op snelheid alleen.',
-  'Bouw je volume rustig op en herstel bewust.',
-  'Kracht helpt je looptechniek en blessurepreventie.',
-];
+// coachNotes removed; use coach advice from other sources or UI components when needed.
 
 function getDefaultCoachProfile(): CoachProfile {
   return {
@@ -558,6 +554,9 @@ function App() {
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachError, setCoachError] = useState('');
   const [supabaseHydrated, setSupabaseHydrated] = useState(!isSupabaseConfigured);
+  const [stravaActivities, setStravaActivities] = useState<any[]>([]);
+  const [stravaLoading, setStravaLoading] = useState(false);
+  const [stravaError, setStravaError] = useState('');
   const [activities, setActivities] = useState<ActivityEntry[]>(() => {
     if (typeof window === 'undefined') {
       return storedActivities;
@@ -577,6 +576,41 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(coachPlanKey, JSON.stringify(trainingPlan));
   }, [trainingPlan]);
+
+  useEffect(() => {
+    async function loadStravaActivities() {
+      if (activePage !== 'run') return;
+      setStravaLoading(true);
+      setStravaError('');
+
+      try {
+        const res = await fetch('/api/strava/activities');
+        if (res.status === 401) {
+          setStravaActivities([]);
+          setStravaError('Niet gekoppeld met Strava. Klik op "Connect Strava".');
+          setStravaLoading(false);
+          return;
+        }
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Kon activiteiten niet laden' }));
+          setStravaError(err?.error || 'Kon activiteiten niet laden');
+          setStravaActivities([]);
+          setStravaLoading(false);
+          return;
+        }
+
+        const data = await res.json();
+        setStravaActivities(Array.isArray(data.activities) ? data.activities : []);
+      } catch (err) {
+        setStravaError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setStravaLoading(false);
+      }
+    }
+
+    void loadStravaActivities();
+  }, [activePage]);
 
   useEffect(() => {
     const supabaseClient = supabase;
@@ -1101,7 +1135,7 @@ function App() {
             <div className="card page-card page-card--run">
               <p className="eyebrow">Coach voor hardlopen</p>
               <h2>Run pagina</h2>
-              <p className="page-copy">Je hardlooppagina laat alleen loopfocus, tempo en herstel zien.</p>
+              <p className="page-copy">Je hardlooppagina toont je lokale sessies en je Strava-activiteiten (als gekoppeld).</p>
               <div className="focus-card__stats">
                 <strong>{runEntries.length} runs</strong>
                 <span>{weeklyDistance.toFixed(1)} km deze week</span>
@@ -1113,12 +1147,32 @@ function App() {
             </div>
 
             <div className="card page-card">
-              <h3>Coachadvies</h3>
-              <ul className="coach-list">
-                {coachNotes.map((note) => (
-                  <li key={note}>{note}</li>
-                ))}
-              </ul>
+              <h3>Strava activiteiten</h3>
+              {stravaLoading ? (
+                <p>Laadt activiteiten...</p>
+              ) : stravaError ? (
+                <div>
+                  <p className="coach-status coach-status--error">{stravaError}</p>
+                  <a className="button" href="/auth/strava">Connect Strava</a>
+                </div>
+              ) : stravaActivities.length ? (
+                <div className="coach-result__summary--compact">
+                  <ul className="coach-list">
+                    {stravaActivities.map((act) => (
+                      <li key={act.id}>
+                        <strong>{act.name}</strong> · { (act.distance/1000).toFixed(2)} km · {Math.round(act.moving_time/60)} min · {new Date(act.start_date).toLocaleDateString()}
+                        {' '}
+                        <a href={`https://www.strava.com/activities/${act.id}`} target="_blank" rel="noreferrer">Open</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div>
+                  <p>Geen Strava-activiteiten gevonden.</p>
+                  <a className="button" href="/auth/strava">Connect Strava</a>
+                </div>
+              )}
             </div>
           </section>
         );

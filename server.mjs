@@ -406,6 +406,97 @@ async function handleStravaCallback(request, response) {
   }
 }
 
+async function getStravaTokensFromSupabase() {
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !anonKey) return null;
+
+    const restUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/app_state?id=eq.main`;
+    const res = await fetch(restUrl, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+    });
+
+    if (!res.ok) return null;
+    const json = await res.json();
+    const payload = Array.isArray(json) && json[0] && json[0].payload ? json[0].payload : null;
+    return payload && payload.strava ? payload.strava : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function refreshStravaTokenIfNeeded(tokens) {
+  try {
+    if (!tokens) return null;
+    const now = Math.floor(Date.now() / 1000);
+    if (!tokens.expires_at || tokens.expires_at > now + 60) {
+      return tokens; // still valid
+    }
+
+    const clientId = process.env.STRAVA_CLIENT_ID;
+    const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return tokens;
+
+    const refreshRes = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: Number(clientId),
+        client_secret: clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token: tokens.refresh_token,
+      }),
+    });
+
+    if (!refreshRes.ok) return tokens;
+    const newTokens = await refreshRes.json();
+    // store updated tokens
+    await storeStravaTokensToSupabase(newTokens);
+    return newTokens;
+  } catch (err) {
+    return tokens;
+  }
+}
+
+async function handleStravaActivities(request, response) {
+  try {
+    const tokens = await getStravaTokensFromSupabase();
+    if (!tokens) {
+      response.writeHead(401, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: 'No Strava tokens stored.' }));
+      return;
+    }
+
+    const usableTokens = await refreshStravaTokenIfNeeded(tokens);
+    const accessToken = usableTokens.access_token || usableTokens.token;
+    if (!accessToken) {
+      response.writeHead(401, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: 'No access token available.' }));
+      return;
+    }
+
+    const activitiesRes = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!activitiesRes.ok) {
+      const text = await activitiesRes.text().catch(() => '');
+      response.writeHead(502, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: 'Strava API error', detail: text }));
+      return;
+    }
+
+    const activities = await activitiesRes.json();
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ activities }));
+  } catch (err) {
+    response.writeHead(500, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+  }
+}
+
 await loadEnvFile();
 const pdfSourcesContext = await loadPdfSourcesContext();
 
@@ -422,6 +513,11 @@ const server = http.createServer(async (request, response) => {
 
   if (request.url?.startsWith('/auth/strava')) {
     await handleStravaAuth(request, response);
+    return;
+  }
+
+  if (request.url?.startsWith('/api/strava/activities')) {
+    await handleStravaActivities(request, response);
     return;
   }
 
