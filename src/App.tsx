@@ -580,8 +580,30 @@ function App() {
   }, [trainingPlan]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const stravaStatus = params.get('strava');
+
+    if (stravaStatus === 'connected') {
+      setActivePage('run');
+      setStravaError('');
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    if (stravaStatus === 'storage_failed') {
+      setActivePage('run');
+      setStravaError('Strava is gekoppeld, maar opslaan in Supabase mislukte. Controleer de server-env vars.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     async function loadStravaActivities() {
-      if (activePage !== 'run') return;
+      if (activePage !== 'run' && activePage !== 'history') return;
       setStravaLoading(true);
       setStravaError('');
 
@@ -723,6 +745,47 @@ function App() {
     const pace = activity.durationMin / activity.distanceKm;
     return pace < bestPace ? pace : bestPace;
   }, Number.POSITIVE_INFINITY);
+
+  const stravaPersonalRecords = (() => {
+    if (!stravaActivities || stravaActivities.length === 0) {
+      return null;
+    }
+
+    const records: Record<string, any> = {
+      fastestPace: null,
+      longestDistance: null,
+      highestElevation: null,
+      highestAvgHR: null,
+      fastestMaxSpeed: null,
+    };
+
+    stravaActivities.forEach((act: any) => {
+      const distanceKm = act.distance ? act.distance / 1000 : 0;
+      const pace = act.moving_time && distanceKm ? (act.moving_time / 60) / distanceKm : null;
+
+      if (pace && (!records.fastestPace || pace < records.fastestPace.pace)) {
+        records.fastestPace = { pace, name: act.name, date: act.start_date };
+      }
+
+      if (!records.longestDistance || distanceKm > records.longestDistance.distance) {
+        records.longestDistance = { distance: distanceKm, name: act.name, date: act.start_date };
+      }
+
+      if (act.total_elevation_gain && (!records.highestElevation || act.total_elevation_gain > records.highestElevation.elevation)) {
+        records.highestElevation = { elevation: act.total_elevation_gain, name: act.name, date: act.start_date };
+      }
+
+      if (act.average_heartrate && (!records.highestAvgHR || act.average_heartrate > records.highestAvgHR.hr)) {
+        records.highestAvgHR = { hr: act.average_heartrate, name: act.name, date: act.start_date };
+      }
+
+      if (act.max_speed && (!records.fastestMaxSpeed || act.max_speed > records.fastestMaxSpeed.speed)) {
+        records.fastestMaxSpeed = { speed: act.max_speed, name: act.name, date: act.start_date };
+      }
+    });
+
+    return records;
+  })();
 
   const currentQuestion = coachQuestions[coachStepIndex];
   const homeWeekDays = getHomeWeekDays();
@@ -1148,6 +1211,73 @@ function App() {
               </button>
             </div>
 
+            {stravaPersonalRecords && (
+              <div className="card page-card">
+                <h3>Personal Records (Strava)</h3>
+                <div className="coach-result__summary--compact" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  {stravaPersonalRecords.fastestPace && (
+                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                      <strong>Snelste tempo</strong>
+                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
+                        {formatPace(stravaPersonalRecords.fastestPace.pace)}
+                      </p>
+                      <small style={{ color: '#666' }}>
+                        {stravaPersonalRecords.fastestPace.name} · {new Date(stravaPersonalRecords.fastestPace.date).toLocaleDateString()}
+                      </small>
+                    </div>
+                  )}
+                  
+                  {stravaPersonalRecords.longestDistance && (
+                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                      <strong>Langste afstand</strong>
+                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
+                        {stravaPersonalRecords.longestDistance.distance.toFixed(2)} km
+                      </p>
+                      <small style={{ color: '#666' }}>
+                        {stravaPersonalRecords.longestDistance.name} · {new Date(stravaPersonalRecords.longestDistance.date).toLocaleDateString()}
+                      </small>
+                    </div>
+                  )}
+                  
+                  {stravaPersonalRecords.fastestMaxSpeed && (
+                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                      <strong>Snelste snelheid</strong>
+                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
+                        {(stravaPersonalRecords.fastestMaxSpeed.speed * 3.6).toFixed(1)} km/h
+                      </p>
+                      <small style={{ color: '#666' }}>
+                        {stravaPersonalRecords.fastestMaxSpeed.name} · {new Date(stravaPersonalRecords.fastestMaxSpeed.date).toLocaleDateString()}
+                      </small>
+                    </div>
+                  )}
+                  
+                  {stravaPersonalRecords.highestElevation && (
+                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                      <strong>Meeste hoogtemeters</strong>
+                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
+                        {stravaPersonalRecords.highestElevation.elevation.toFixed(0)} m
+                      </p>
+                      <small style={{ color: '#666' }}>
+                        {stravaPersonalRecords.highestElevation.name} · {new Date(stravaPersonalRecords.highestElevation.date).toLocaleDateString()}
+                      </small>
+                    </div>
+                  )}
+
+                  {stravaPersonalRecords.highestAvgHR && (
+                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                      <strong>Hoogste gem. hartslag</strong>
+                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
+                        {stravaPersonalRecords.highestAvgHR.hr.toFixed(0)} bpm
+                      </p>
+                      <small style={{ color: '#666' }}>
+                        {stravaPersonalRecords.highestAvgHR.name} · {new Date(stravaPersonalRecords.highestAvgHR.date).toLocaleDateString()}
+                      </small>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="card page-card">
               <h3>Strava activiteiten</h3>
               {stravaLoading ? (
@@ -1222,29 +1352,77 @@ function App() {
         );
 
       case 'history':
+        const allActivities = [
+          ...activities,
+          ...(stravaActivities || []).map((act: any) => ({
+            id: `strava-${act.id}`,
+            title: act.name || 'Strava activiteit',
+            type: 'run',
+            date: act.start_date || new Date().toISOString(),
+            durationMin: Math.round(act.moving_time ? act.moving_time / 60 : 0),
+            distanceKm: act.distance ? act.distance / 1000 : 0,
+            effort: 5,
+            notes: `Strava: ${act.type || 'Run'} · Cadans: ${act.average_cadence || 'n.v.t.'} · HR: ${act.average_heartrate || 'n.v.t.'}`,
+          })),
+        ];
+        
+        const sortedActivities = allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
         return (
           <section className="page page--single">
             <div className="card page-card">
               <p className="eyebrow">Historie</p>
               <h2>Recente sessies</h2>
-              <div className="timeline timeline--compact">
-                {activities.map((activity) => (
-                  <article className="timeline-item" key={activity.id}>
-                    <div className={`timeline-item__dot timeline-item__dot--${activity.type}`} />
-                    <div className="timeline-item__content">
-                      <div className="timeline-item__top">
-                        <strong>{activity.title}</strong>
-                        <span>{formatDate(activity.date)}</span>
-                      </div>
-                      <div className="timeline-item__meta">
-                        <span>{activity.distanceKm.toFixed(1)} km</span>
-                        <span>{activity.durationMin} min</span>
-                        <span>Effort {activity.effort}/10</span>
-                      </div>
+              {stravaLoading ? (
+                <p>Strava-activiteiten laden...</p>
+              ) : (
+                <>
+                  {stravaError && (
+                    <div className="coach-status coach-status--error" style={{marginBottom: '1em'}}>
+                      {stravaError}
+                      <br />
+                      <a className="button button--small" href={stravaAuthHref}>
+                        ↳ Connect Strava
+                      </a>
                     </div>
-                  </article>
-                ))}
-              </div>
+                  )}
+                  {sortedActivities.length ? (
+                    <div className="timeline timeline--compact">
+                      {sortedActivities.map((activity) => (
+                        <article className="timeline-item" key={activity.id}>
+                          <div className={`timeline-item__dot timeline-item__dot--${activity.type}`} />
+                          <div className="timeline-item__content">
+                            <div className="timeline-item__top">
+                              <strong>{activity.title}</strong>
+                              <span>{formatDate(activity.date)}</span>
+                              {String(activity.id).startsWith('strava-') && <span style={{fontSize: '0.85em', color: '#ff7a00', fontWeight: 'bold'}}>Strava</span>}
+                            </div>
+                            <div className="timeline-item__meta">
+                              <span>{activity.distanceKm.toFixed(1)} km</span>
+                              <span>{activity.durationMin} min</span>
+                              {!String(activity.id).startsWith('strava-') && <span>Effort {activity.effort}/10</span>}
+                            </div>
+                            {String(activity.id).startsWith('strava-') && (
+                              <div className="timeline-item__notes" style={{fontSize: '0.9em', color: '#666', marginTop: '0.5em'}}>
+                                {activity.notes}
+                              </div>
+                            )}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="page-copy">Geen activiteiten gevonden. Start je eerste hardloopsessie!</p>
+                      {stravaError && (
+                        <a className="button" href={stravaAuthHref}>
+                          Connect Strava
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </section>
         );
