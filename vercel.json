@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/auth/strava",
+      "destination": "/api/auth/strava"
+    },
+    {
+      "source": "/auth/strava/callback",
+      "destination": "/api/auth/strava/callback"
+    },
+    {
+      "source": "/api/strava/activities",
+      "destination": "/api/strava/activities"
+    },
+    {
+      "source": "/api/coach",
+      "destination": "/api/coach"
+    }
+  ]
+}

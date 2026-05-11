@@ -257,6 +257,8 @@ const coachQuestions: CoachQuestion[] = [
 
 // coachNotes removed; use coach advice from other sources or UI components when needed.
 
+const stravaAuthHref = import.meta.env.DEV ? '/auth/strava' : '/api/auth/strava';
+
 function getDefaultCoachProfile(): CoachProfile {
   return {
     goal: '',
@@ -1153,7 +1155,7 @@ function App() {
               ) : stravaError ? (
                 <div>
                   <p className="coach-status coach-status--error">{stravaError}</p>
-                  <a className="button" href="/auth/strava">Connect Strava</a>
+                  <a className="button" href={stravaAuthHref}>Connect Strava</a>
                 </div>
               ) : stravaActivities.length ? (
                 <div className="coach-result__summary--compact">
@@ -1170,7 +1172,7 @@ function App() {
               ) : (
                 <div>
                   <p>Geen Strava-activiteiten gevonden.</p>
-                  <a className="button" href="/auth/strava">Connect Strava</a>
+                  <a className="button" href={stravaAuthHref}>Connect Strava</a>
                 </div>
               )}
             </div>

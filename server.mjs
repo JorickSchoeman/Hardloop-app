@@ -506,6 +506,12 @@ const vite = await createViteServer({
 });
 
 const server = http.createServer(async (request, response) => {
+  try {
+    const host = request.headers.host || '';
+    console.log(`[req] ${request.method} ${request.url} host=${host} origin=${request.headers.origin || ''} referer=${request.headers.referer || ''}`);
+  } catch (e) {
+    // ignore logging errors
+  }
   if (request.url?.startsWith('/auth/strava/callback')) {
     await handleStravaCallback(request, response);
     return;
@@ -542,8 +548,11 @@ const server = http.createServer(async (request, response) => {
   }
 
   vite.middlewares(request, response, () => {
-    response.statusCode = 404;
-    response.end('Not found');
+    const host = request.headers.host || '';
+    const msg = `The requested URL ${request.url} was not found on this server.`;
+    console.warn(`[404] ${request.method} ${request.url} host=${host}`);
+    response.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(`<!doctype html><html><body><h1>404: NOT_FOUND</h1><p>${msg}</p><p>Expected Strava callback path: <code>/auth/strava/callback</code></p><p>Make sure your Strava Redirect URI matches exactly: <code>http://localhost:5173/auth/strava/callback</code></p><pre>Request: ${request.method} ${request.url}\nHost: ${host}</pre></body></html>`);
   });
 });
 
