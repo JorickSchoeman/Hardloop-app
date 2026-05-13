@@ -1102,6 +1102,41 @@ textarea:focus-visible {
   color: var(--text-muted);
 }
 
+.plan-item__completed {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 122, 0, 0.1);
+}
+
+.plan-item__status {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #10b981;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+
+.plan-item__activity {
+  display: block;
+  padding: 8px 0;
+  font-size: 0.9rem;
+}
+
+.plan-item__activity-title {
+  display: block;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.plan-item__activity-meta {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 .stat-card {
   min-height: 150px;
 }

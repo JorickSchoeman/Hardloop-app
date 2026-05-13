@@ -289,10 +289,14 @@ async function handleCoachRequest(request, response) {
 
 async function storeStravaTokensToSupabase(tokenPayload) {
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const anonKey = process.env.SUPABASE_ANON_KEY;
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !anonKey) {
+    if (!supabaseUrl || !supabaseKey) {
       return false;
     }
 
@@ -301,8 +305,8 @@ async function storeStravaTokensToSupabase(tokenPayload) {
     // Try to fetch existing record
     const getRes = await fetch(`${restUrl}?id=eq.main`, {
       headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
       },
     });
 
@@ -312,8 +316,8 @@ async function storeStravaTokensToSupabase(tokenPayload) {
       const createRes = await fetch(restUrl, {
         method: 'POST',
         headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
           'Content-Type': 'application/json',
           Prefer: 'return=representation',
         },
@@ -330,8 +334,8 @@ async function storeStravaTokensToSupabase(tokenPayload) {
     const patchRes = await fetch(`${restUrl}?id=eq.main`, {
       method: 'PATCH',
       headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
         Prefer: 'return=representation',
       },
@@ -344,9 +348,38 @@ async function storeStravaTokensToSupabase(tokenPayload) {
   }
 }
 
+function getStravaRedirectUri(request, fallbackPath = '/auth/strava/callback') {
+  const configuredValue = process.env.STRAVA_REDIRECT_URI?.trim();
+
+  if (configuredValue) {
+    try {
+      const configuredUrl = new URL(configuredValue);
+      if (!configuredUrl.pathname || configuredUrl.pathname === '/') {
+        configuredUrl.pathname = fallbackPath;
+      }
+      return configuredUrl.toString();
+    } catch {
+      const host = configuredValue.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      const protocol = host.startsWith('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https';
+      return `${protocol}://${host}${fallbackPath}`;
+    }
+  }
+
+  const host = request.headers?.host || `localhost:${port}`;
+  const forwardedProto = request.headers?.['x-forwarded-proto'];
+  const protocol =
+    typeof forwardedProto === 'string' && forwardedProto.trim()
+      ? forwardedProto.split(',')[0].trim()
+      : host.startsWith('localhost') || host.startsWith('127.0.0.1')
+        ? 'http'
+        : 'https';
+
+  return `${protocol}://${host}${fallbackPath}`;
+}
+
 async function handleStravaAuth(request, response) {
   const clientId = process.env.STRAVA_CLIENT_ID;
-  const redirectUri = process.env.STRAVA_REDIRECT_URI || `http://localhost:${port}/auth/strava/callback`;
+  const redirectUri = getStravaRedirectUri(request, '/auth/strava/callback');
   const scopes = encodeURIComponent('activity:read_all,profile:read_all');
 
   if (!clientId) {
@@ -373,7 +406,7 @@ async function handleStravaCallback(request, response) {
 
   const clientId = process.env.STRAVA_CLIENT_ID;
   const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  const redirectUri = process.env.STRAVA_REDIRECT_URI || `http://localhost:${port}/auth/strava/callback`;
+  const redirectUri = getStravaRedirectUri(request, '/auth/strava/callback');
 
   if (!clientId || !clientSecret) {
     response.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -389,6 +422,7 @@ async function handleStravaCallback(request, response) {
         client_id: Number(clientId),
         client_secret: clientSecret,
         code,
+        redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       }),
     });
@@ -398,8 +432,8 @@ async function handleStravaCallback(request, response) {
     // Store tokens in Supabase app_state.payload.strava
     const ok = await storeStravaTokensToSupabase(tokenData);
 
-    response.writeHead(ok ? 200 : 500, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(`<html><body><h1>Strava gekoppeld: ${ok ? 'succes' : 'mislukt'}</h1><pre>${JSON.stringify(tokenData, null, 2)}</pre></body></html>`);
+    response.writeHead(302, { Location: ok ? '/?strava=connected' : '/?strava=storage_failed' });
+    response.end();
   } catch (error) {
     response.writeHead(500, { 'Content-Type': 'text/plain' });
     response.end(`Fout bij token exchange: ${error instanceof Error ? error.message : String(error)}`);
@@ -408,14 +442,18 @@ async function handleStravaCallback(request, response) {
 
 async function getStravaTokensFromSupabase() {
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const anonKey = process.env.SUPABASE_ANON_KEY;
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !anonKey) return null;
+    if (!supabaseUrl || !supabaseKey) return null;
 
     const restUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/app_state?id=eq.main`;
     const res = await fetch(restUrl, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
     });
 
     if (!res.ok) return null;
@@ -532,18 +570,21 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
-  if (request.method === 'GET' && (request.url === '/' || request.url?.startsWith('/index.html'))) {
-    try {
-      const template = await readFile(path.join(process.cwd(), 'index.html'), 'utf8');
-      const html = await vite.transformIndexHtml(request.url, template);
+  if (request.method === 'GET') {
+    const urlPath = request.url?.split('?')[0] || '';
+    if (urlPath === '/' || urlPath === '/index.html') {
+      try {
+        const template = await readFile(path.join(process.cwd(), 'index.html'), 'utf8');
+        const html = await vite.transformIndexHtml(request.url, template);
 
-      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      response.end(html);
-      return;
-    } catch (error) {
-      response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-      response.end(error instanceof Error ? error.message : 'Kon index.html niet laden.');
-      return;
+        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        response.end(html);
+        return;
+      } catch (error) {
+        response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        response.end(error instanceof Error ? error.message : 'Kon index.html niet laden.');
+        return;
+      }
     }
   }
 

@@ -724,6 +724,26 @@ function App() {
 
   const runEntries = activities.filter((activity) => activity.type === 'run');
 
+  // Auto-sync Strava activities when a run is added
+  useEffect(() => {
+    if (runEntries.length === 0) {
+      return;
+    }
+
+    async function syncStravaActivities() {
+      try {
+        const res = await fetch('/api/strava/activities');
+        if (!res.ok) return;
+        const data = await res.json();
+        setStravaActivities(Array.isArray(data.activities) ? data.activities : []);
+      } catch (err) {
+        console.error('Strava sync error:', err);
+      }
+    }
+
+    void syncStravaActivities();
+  }, [runEntries.length]);
+
   const weeklyDistance = runEntries
     .filter((activity) => {
       const activityDate = new Date(activity.date);
@@ -818,6 +838,67 @@ function App() {
 
     setActivities((currentActivities) => [scheduledRun, ...currentActivities]);
     setActivePage('history');
+  }
+
+  function getAgendaItemsForDay(dayIndex: number) {
+    // Get planned sessions for this day
+    const plannedSessions = trainingPlan.sessions
+      .filter((session) => session.weekdayIndex === dayIndex)
+      .map((session) => ({
+        id: session.id,
+        title: session.title,
+        type: 'planned' as const,
+        date: session.date,
+        durationMin: session.durationMin,
+        focus: session.focus,
+        distanceKm: undefined,
+        completed: false,
+      }));
+
+    // Get completed activities for this day
+    const dayStart = new Date();
+    dayStart.setDate(dayStart.getDate() + (dayIndex - dayStart.getDay() + 7) % 7);
+    dayStart.setHours(0, 0, 0, 0);
+    
+    const dayEnd = new Date(dayStart);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const completedActivities = activities
+      .filter((activity) => {
+        const actDate = new Date(activity.date);
+        return actDate >= dayStart && actDate <= dayEnd;
+      })
+      .map((activity) => ({
+        id: activity.id,
+        title: activity.title,
+        type: 'completed' as const,
+        date: activity.date,
+        durationMin: activity.durationMin,
+        distanceKm: activity.distanceKm,
+        effort: activity.effort,
+        completed: true,
+      }));
+
+    // Get Strava activities for this day
+    const stravaItemsForDay = (stravaActivities || [])
+      .filter((act) => {
+        const actDate = new Date(act.start_date);
+        return actDate >= dayStart && actDate <= dayEnd;
+      })
+      .map((act) => ({
+        id: `strava-${act.id}`,
+        title: act.name || 'Strava run',
+        type: 'strava' as const,
+        date: act.start_date,
+        durationMin: Math.round((act.moving_time || 0) / 60),
+        distanceKm: (act.distance || 0) / 1000,
+        completed: true,
+      }));
+
+    // Combine and sort by date
+    return [...plannedSessions, ...completedActivities, ...stravaItemsForDay].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
   }
 
   function updateCoachProfile(key: CoachStepKey, value: CoachGoal | number | string | number[]) {
@@ -1317,9 +1398,9 @@ function App() {
         return (
           <section className="page page--single">
             <div className="card page-card">
-              <p className="eyebrow">Weekplan</p>
-              <h2>Coachplan</h2>
-              <p className="page-copy">Een rustige opbouw zonder commerciële prikkels. De agenda hieronder is gegenereerd vanuit je intake.</p>
+              <p className="eyebrow">Weekplan & Workouts</p>
+              <h2>Coachplan met resultaten</h2>
+              <p className="page-copy">Je geplande trainingen en voltooide workouts (inclusief Strava) op één plek.</p>
 
               {trainingPlan.sessions.length ? (
                 <div className="coach-result__summary coach-result__summary--compact">
@@ -1330,17 +1411,38 @@ function App() {
 
               <div className="plan-grid">
                 {trainingPlan.sessions.length ? (
-                  trainingPlan.sessions.map((session) => (
-                    <article className="plan-item plan-item--agenda" key={session.id}>
-                      <div className="plan-item__top">
-                        <strong>{session.dayLabel}</strong>
-                        <span>{session.durationMin} min</span>
-                      </div>
-                      <span className="plan-item__meta">PDF week {session.pdfWeekNumber} · training {session.pdfTrainingNumber}</span>
-                      <strong>{session.title}</strong>
-                      <span>{session.focus}</span>
-                    </article>
-                  ))
+                  trainingPlan.sessions.map((session) => {
+                    const agendaItems = getAgendaItemsForDay(session.weekdayIndex);
+                    const completedOnThisDay = agendaItems.filter((item) => item.completed);
+
+                    return (
+                      <article className="plan-item plan-item--agenda" key={session.id}>
+                        <div className="plan-item__top">
+                          <strong>{session.dayLabel}</strong>
+                          <span>{session.durationMin} min</span>
+                        </div>
+                        <span className="plan-item__meta">PDF week {session.pdfWeekNumber} · training {session.pdfTrainingNumber}</span>
+                        <strong>{session.title}</strong>
+                        <span>{session.focus}</span>
+                        
+                        {completedOnThisDay.length > 0 && (
+                          <div className="plan-item__completed">
+                            <span className="plan-item__status">✓ Gedaan</span>
+                            {completedOnThisDay.map((item) => (
+                              <div key={item.id} className="plan-item__activity">
+                                <span className="plan-item__activity-title">{item.title}</span>
+                                <span className="plan-item__activity-meta">
+                                  {item.durationMin} min
+                                  {item.distanceKm && ` · ${item.distanceKm.toFixed(1)} km`}
+                                  {item.type === 'strava' && ' · Strava'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })
                 ) : (
                   <article className="plan-item">
                     <strong>Nog geen agenda</strong>
