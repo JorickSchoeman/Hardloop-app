@@ -1199,12 +1199,21 @@ function App() {
           <section className="page page--single">
             <div className="card page-card page-card--run">
               <p className="eyebrow">Coach voor hardlopen</p>
-              <h2>Run pagina</h2>
-              <p className="page-copy">Je hardlooppagina toont je lokale sessies en je Strava-activiteiten (als gekoppeld).</p>
-              <div className="focus-card__stats">
-                <strong>{runEntries.length} runs</strong>
-                <span>{weeklyDistance.toFixed(1)} km deze week</span>
-                <span>Beste pace: {formatPace(bestRunPace)}</span>
+              <h2>Mijn hardloopsessies</h2>
+              <p className="page-copy">Een overzicht van je lokale sessies en Strava-activiteiten.</p>
+              <div className="run-header-stats">
+                <div className="run-header-stat">
+                  <strong>{runEntries.length}</strong>
+                  <span>Sessies</span>
+                </div>
+                <div className="run-header-stat">
+                  <strong>{weeklyDistance.toFixed(1)}</strong>
+                  <span>km deze week</span>
+                </div>
+                <div className="run-header-stat">
+                  <strong>{Number.isFinite(bestRunPace) ? formatPace(bestRunPace) : '—'}</strong>
+                  <span>Beste pace</span>
+                </div>
               </div>
               <button className="button button--secondary" type="button" onClick={openWorkoutPage}>
                 Nieuwe hardloopsessie
@@ -1213,63 +1222,55 @@ function App() {
 
             {stravaPersonalRecords && (
               <div className="card page-card">
-                <h3>Personal Records (Strava)</h3>
-                <div className="coach-result__summary--compact" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="strava-section-header">
+                  <h3>Personal Records (Strava)</h3>
+                </div>
+                <div className="strava-records">
                   {stravaPersonalRecords.fastestPace && (
-                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                    <div className="strava-record-item">
                       <strong>Snelste tempo</strong>
-                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
-                        {formatPace(stravaPersonalRecords.fastestPace.pace)}
-                      </p>
-                      <small style={{ color: '#666' }}>
+                      <span className="value">{formatPace(stravaPersonalRecords.fastestPace.pace)}</span>
+                      <small>
                         {stravaPersonalRecords.fastestPace.name} · {new Date(stravaPersonalRecords.fastestPace.date).toLocaleDateString()}
                       </small>
                     </div>
                   )}
                   
                   {stravaPersonalRecords.longestDistance && (
-                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                    <div className="strava-record-item">
                       <strong>Langste afstand</strong>
-                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
-                        {stravaPersonalRecords.longestDistance.distance.toFixed(2)} km
-                      </p>
-                      <small style={{ color: '#666' }}>
+                      <span className="value">{stravaPersonalRecords.longestDistance.distance.toFixed(2)} km</span>
+                      <small>
                         {stravaPersonalRecords.longestDistance.name} · {new Date(stravaPersonalRecords.longestDistance.date).toLocaleDateString()}
                       </small>
                     </div>
                   )}
                   
                   {stravaPersonalRecords.fastestMaxSpeed && (
-                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                    <div className="strava-record-item">
                       <strong>Snelste snelheid</strong>
-                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
-                        {(stravaPersonalRecords.fastestMaxSpeed.speed * 3.6).toFixed(1)} km/h
-                      </p>
-                      <small style={{ color: '#666' }}>
+                      <span className="value">{(stravaPersonalRecords.fastestMaxSpeed.speed * 3.6).toFixed(1)} km/h</span>
+                      <small>
                         {stravaPersonalRecords.fastestMaxSpeed.name} · {new Date(stravaPersonalRecords.fastestMaxSpeed.date).toLocaleDateString()}
                       </small>
                     </div>
                   )}
                   
                   {stravaPersonalRecords.highestElevation && (
-                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                    <div className="strava-record-item">
                       <strong>Meeste hoogtemeters</strong>
-                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
-                        {stravaPersonalRecords.highestElevation.elevation.toFixed(0)} m
-                      </p>
-                      <small style={{ color: '#666' }}>
+                      <span className="value">{stravaPersonalRecords.highestElevation.elevation.toFixed(0)} m</span>
+                      <small>
                         {stravaPersonalRecords.highestElevation.name} · {new Date(stravaPersonalRecords.highestElevation.date).toLocaleDateString()}
                       </small>
                     </div>
                   )}
 
                   {stravaPersonalRecords.highestAvgHR && (
-                    <div style={{ padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+                    <div className="strava-record-item">
                       <strong>Hoogste gem. hartslag</strong>
-                      <p style={{ fontSize: '1.5rem', margin: '0.5rem 0 0 0', color: '#ff7a00' }}>
-                        {stravaPersonalRecords.highestAvgHR.hr.toFixed(0)} bpm
-                      </p>
-                      <small style={{ color: '#666' }}>
+                      <span className="value">{stravaPersonalRecords.highestAvgHR.hr.toFixed(0)} bpm</span>
+                      <small>
                         {stravaPersonalRecords.highestAvgHR.name} · {new Date(stravaPersonalRecords.highestAvgHR.date).toLocaleDateString()}
                       </small>
                     </div>
@@ -1279,29 +1280,29 @@ function App() {
             )}
 
             <div className="card page-card">
-              <h3>Strava activiteiten</h3>
+              <div className="strava-section-header">
+                <h3>Strava activiteiten</h3>
+              </div>
               {stravaLoading ? (
-                <p>Laadt activiteiten...</p>
+                <p className="page-copy">Laadt activiteiten...</p>
               ) : stravaError ? (
                 <div>
                   <p className="coach-status coach-status--error">{stravaError}</p>
                   <a className="button" href={stravaAuthHref}>Connect Strava</a>
                 </div>
               ) : stravaActivities.length ? (
-                <div className="coach-result__summary--compact">
-                  <ul className="coach-list">
-                    {stravaActivities.map((act) => (
-                      <li key={act.id}>
-                        <strong>{act.name}</strong> · { (act.distance/1000).toFixed(2)} km · {Math.round(act.moving_time/60)} min · {new Date(act.start_date).toLocaleDateString()}
-                        {' '}
-                        <a href={`https://www.strava.com/activities/${act.id}`} target="_blank" rel="noreferrer">Open</a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <ul className="coach-list">
+                  {stravaActivities.map((act) => (
+                    <li key={act.id}>
+                      <strong>{act.name}</strong> · {(act.distance/1000).toFixed(2)} km · {Math.round(act.moving_time/60)} min · {new Date(act.start_date).toLocaleDateString()}
+                      {' '}
+                      <a href={`https://www.strava.com/activities/${act.id}`} target="_blank" rel="noreferrer">Open</a>
+                    </li>
+                  ))}
+                </ul>
               ) : (
                 <div>
-                  <p>Geen Strava-activiteiten gevonden.</p>
+                  <p className="page-copy">Geen Strava-activiteiten gevonden.</p>
                   <a className="button" href={stravaAuthHref}>Connect Strava</a>
                 </div>
               )}

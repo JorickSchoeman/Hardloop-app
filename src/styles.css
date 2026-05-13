@@ -1299,6 +1299,98 @@ textarea:focus-visible {
   margin: 10px 0 8px;
 }
 
+/* Run page improvements */
+.strava-records {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.strava-record-item {
+  padding: 14px;
+  background: linear-gradient(135deg, #f9f9f9 0%, #fafafa 100%);
+  border: 1px solid rgba(255, 122, 0, 0.08);
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+
+.strava-record-item:hover {
+  background: linear-gradient(135deg, #fff 0%, #fafafa 100%);
+  border-color: rgba(255, 122, 0, 0.16);
+  box-shadow: 0 4px 12px rgba(255, 122, 0, 0.08);
+}
+
+.strava-record-item strong {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+
+.strava-record-item .value {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+.strava-record-item small {
+  display: block;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.run-header-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.run-header-stat {
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(255, 122, 0, 0.04), rgba(255, 122, 0, 0.02));
+  border: 1px solid rgba(255, 122, 0, 0.12);
+  border-radius: 14px;
+  text-align: center;
+}
+
+.run-header-stat strong {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.run-header-stat span {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.strava-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.strava-section-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
 @media (max-width: 1024px) {
   .topbar,
   .focus-grid,
