@@ -235,6 +235,42 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
+.home-agenda-strip__items {
+  display: grid;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.home-agenda-strip__item {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff 0%, #fff8f1 100%);
+  border: 1px solid rgba(255, 122, 0, 0.12);
+}
+
+.home-agenda-strip__item-top,
+.home-agenda-strip__item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.home-agenda-strip__item-top strong {
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
+.home-agenda-strip__item-top span,
+.home-agenda-strip__item-meta span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.home-agenda-strip__item-meta {
+  margin-top: 6px;
+}
+
 .home-section-title {
   display: flex;
   justify-content: space-between;

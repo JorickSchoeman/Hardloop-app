@@ -815,6 +815,7 @@ function App() {
     .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
   const selectedHomeDaySession =
     selectedDaySessions.find((session) => new Date(session.date).getTime() >= Date.now()) ?? selectedDaySessions[0];
+  const selectedHomeAgendaItems = getAgendaItemsForDay(selectedHomeDayInfo.dayIndex);
 
   function openWorkoutPage() {
     setActivePage('run');
@@ -1606,6 +1607,24 @@ function App() {
                   <div className="home-agenda-strip__meta">
                     <span>{selectedHomeDaySession.durationMin} min</span>
                     <span>{selectedHomeDaySession.focus}</span>
+                  </div>
+                ) : null}
+
+                {selectedHomeAgendaItems.length ? (
+                  <div className="home-agenda-strip__items">
+                    {selectedHomeAgendaItems.map((item) => (
+                      <div className="home-agenda-strip__item" key={item.id}>
+                        <div className="home-agenda-strip__item-top">
+                          <strong>{item.title}</strong>
+                          <span>{formatDate(item.date)}</span>
+                        </div>
+                        <div className="home-agenda-strip__item-meta">
+                          <span>{item.durationMin} min</span>
+                          {item.distanceKm ? <span>{item.distanceKm.toFixed(1)} km</span> : null}
+                          <span>{String(item.id).startsWith('strava-') ? 'Strava' : item.completed ? 'Gedaan' : 'Plan'}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : null}
               </article>
